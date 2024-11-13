@@ -1,0 +1,30 @@
+#include <iostream>
+#include <cuda_runtime.h>
+
+__global__ void printAlternatingMessages(int N) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;  // Calculate global thread index
+    if (idx < N) {
+        // Check if the thread index is even or odd and print the respective message
+        if (idx % 2 == 0) {
+            printf("HPCAP\n");  // Even thread index prints "HPCAP"
+        } else {
+            printf("CUDA\n");   // Odd thread index prints "CUDA"
+        }
+    }
+}
+
+int main() {
+    int N = 10;  // Define how many threads/messages to print (choose N to print alternately)
+
+    // Launch kernel with one block of N threads
+    int blockSize = N;  // Number of threads per block
+    int numBlocks = 1;  // Number of blocks
+
+    // Call the kernel to print alternating messages
+    printAlternatingMessages<<<numBlocks, blockSize>>>(N);
+
+    // Wait for the GPU to finish
+    cudaDeviceSynchronize();
+
+    return 0;
+}

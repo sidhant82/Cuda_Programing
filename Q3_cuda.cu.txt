@@ -1,0 +1,25 @@
+#include <iostream>
+#include <cuda_runtime.h>
+
+__global__ void printHelloWorld(int N) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx < N) {
+        printf("Hello World %d\n", idx + 1);  // Print the message with a thread-specific number
+    }
+}
+
+int main() {
+    int N = 10;  // Define how many times to print "Hello World"
+
+    // Launch kernel with one block of N threads
+    int blockSize = N;  // Number of threads in the block
+    int numBlocks = 1;  // Number of blocks
+
+    // Call the kernel to print the message
+    printHelloWorld<<<numBlocks, blockSize>>>(N);
+
+    // Wait for the GPU to finish
+    cudaDeviceSynchronize();
+
+    return 0;
+}

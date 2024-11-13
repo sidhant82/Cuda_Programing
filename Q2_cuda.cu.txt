@@ -1,0 +1,56 @@
+#include <iostream>
+#include <cuda_runtime.h>
+
+// Define the size of the arrays
+const int N = 5;
+
+// Declare array C in static global memory on the device
+__device__ int C[N];
+
+// Kernel function to add arrays A and B, storing result in global static C
+__global__ void addArrays(int* A, int* B) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx < N) {
+        C[idx] = A[idx] + B[idx];  // Store the result in C (global static memory)
+    }
+}
+
+int main() {
+    // Host arrays A and B
+    int A[] = {1, 2, 3, 4, 5};
+    int B[] = {5, 4, 3, 2, 1};
+    
+    // Device pointers for A and B
+    int *d_A, *d_B;
+    
+    // Allocate memory for arrays A and B on the device (dynamic memory)
+    cudaMalloc((void**)&d_A, N * sizeof(int));
+    cudaMalloc((void**)&d_B, N * sizeof(int));
+    
+    // Copy data from host to device
+    cudaMemcpy(d_A, A, N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, B, N * sizeof(int), cudaMemcpyHostToDevice);
+    
+    // Launch kernel to add arrays A and B, and store the result in global static C
+    addArrays<<<1, N>>>(d_A, d_B);
+    
+    // Wait for GPU to finish
+    cudaDeviceSynchronize();
+    
+    // Copy the result from global static memory (C) to host
+    int C_host[N];
+    cudaMemcpyFromSymbol(C_host, C, N * sizeof(int));
+    
+    // Print the result
+    std::cout << "Array C (A + B): ";
+    for (int i = 0; i < N; ++i) {
+        std::cout << C_host[i] << " ";
+    }
+    std::cout << std::endl;
+    
+    // Free the allocated dynamic memory on the device
+    cudaFree(d_A);
+    cudaFree(d_B);
+    
+    return 0;
+}

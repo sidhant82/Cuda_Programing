@@ -1,0 +1,97 @@
+#include <iostream>
+#include <cuda_runtime.h>
+
+const int N = 160;  // Total number of threads
+const int BLOCK_SIZE = 8;  // Number of threads per block
+const int NUM_BLOCKS = N / BLOCK_SIZE;  // Number of blocks
+
+// Kernel to find the maximum and minimum in each block
+__global__ void findMaxMin(int *data, int *blockMax, int *blockMin) {
+    __shared__ int sharedMax[BLOCK_SIZE];
+    __shared__ int sharedMin[BLOCK_SIZE];
+
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;  // Global thread index
+
+    // Each thread loads its data into shared memory
+    if (idx < N) {
+        sharedMax[threadIdx.x] = data[idx];
+        sharedMin[threadIdx.x] = data[idx];
+    }
+
+    __syncthreads();  // Synchronize threads within the block
+
+    // Perform reduction to find max and min within the block
+    for (int offset = BLOCK_SIZE / 2; offset > 0; offset /= 2) {
+        if (threadIdx.x < offset) {
+            sharedMax[threadIdx.x] = max(sharedMax[threadIdx.x], sharedMax[threadIdx.x + offset]);
+            sharedMin[threadIdx.x] = min(sharedMin[threadIdx.x], sharedMin[threadIdx.x + offset]);
+        }
+        __syncthreads();  // Synchronize threads after each reduction step
+    }
+
+    // The thread with index 0 writes the block's max and min to global memory
+    if (threadIdx.x == 0) {
+        blockMax[blockIdx.x] = sharedMax[0];
+        blockMin[blockIdx.x] = sharedMin[0];
+    }
+}
+
+int main() {
+    int *d_data, *d_blockMax, *d_blockMin;
+    int h_data[N], h_blockMax[NUM_BLOCKS], h_blockMin[NUM_BLOCKS];
+
+    // Initialize data array with random values between 0 and 100
+    for (int i = 0; i < N; ++i) {
+        h_data[i] = rand() % 100;
+    }
+
+    // Allocate memory on the device
+    cudaMalloc((void**)&d_data, N * sizeof(int));
+    cudaMalloc((void**)&d_blockMax, NUM_BLOCKS * sizeof(int));
+    cudaMalloc((void**)&d_blockMin, NUM_BLOCKS * sizeof(int));
+
+    // Copy data from host to device
+    cudaMemcpy(d_data, h_data, N * sizeof(int), cudaMemcpyHostToDevice);
+
+    // Launch kernel with NUM_BLOCKS blocks and BLOCK_SIZE threads per block
+    findMaxMin<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_data, d_blockMax, d_blockMin);
+
+    // Synchronize to ensure kernel execution finishes before proceeding
+    cudaDeviceSynchronize();
+
+    // Copy the block max and min values from device to host
+    cudaMemcpy(h_blockMax, d_blockMax, NUM_BLOCKS * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_blockMin, d_blockMin, NUM_BLOCKS * sizeof(int), cudaMemcpyDeviceToHost);
+
+    // Compute the overall maximum and minimum values on the host
+    int overallMax = h_blockMax[0];
+    int overallMin = h_blockMin[0];
+
+    for (int i = 1; i < NUM_BLOCKS; ++i) {
+        overallMax = max(overallMax, h_blockMax[i]);
+        overallMin = min(overallMin, h_blockMin[i]);
+    }
+
+    // Print the results
+    std::cout << "Block-level Maximums: ";
+    for (int i = 0; i < NUM_BLOCKS; ++i) {
+        std::cout << h_blockMax[i] << " ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "Block-level Minimums: ";
+    for (int i = 0; i < NUM_BLOCKS; ++i) {
+        std::cout << h_blockMin[i] << " ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "Overall Maximum: " << overallMax << std::endl;
+    std::cout << "Overall Minimum: " << overallMin << std::endl;
+
+    // Free device memory
+    cudaFree(d_data);
+    cudaFree(d_blockMax);
+    cudaFree(d_blockMin);
+
+    return 0;
+}

@@ -1,0 +1,53 @@
+#include <iostream>
+#include <cuda_runtime.h>
+
+// Define the kernel function to add two arrays
+__global__ void addArrays(int* A, int* B, int* C, int N) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx < N) {
+        C[idx] = A[idx] + B[idx];
+    }
+}
+
+int main() {
+    // Host arrays A and B
+    int A[] = {1, 2, 3, 4, 5};
+    int B[] = {5, 4, 3, 2, 1};
+    const int N = 5;  // Size of arrays
+    
+    // Device arrays
+    int *d_A, *d_B, *d_C;
+    
+    // Allocate memory on the device for A, B, and C
+    cudaMalloc((void**)&d_A, N * sizeof(int));
+    cudaMalloc((void**)&d_B, N * sizeof(int));
+    cudaMalloc((void**)&d_C, N * sizeof(int));
+    
+    // Copy the data from host arrays to device arrays
+    cudaMemcpy(d_A, A, N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, B, N * sizeof(int), cudaMemcpyHostToDevice);
+    
+    // Launch the kernel with 1 block of N threads (or adjust based on size)
+    addArrays<<<1, N>>>(d_A, d_B, d_C, N);
+    
+    // Wait for GPU to finish
+    cudaDeviceSynchronize();
+    
+    // Copy the result from device to host
+    int C[N];
+    cudaMemcpy(C, d_C, N * sizeof(int), cudaMemcpyDeviceToHost);
+    
+    // Print the result array C
+    std::cout << "Array C (A + B): ";
+    for (int i = 0; i < N; ++i) {
+        std::cout << C[i] << " ";
+    }
+    std::cout << std::endl;
+    
+    // Free the allocated device memory
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
+    
+    return 0;
+}

@@ -1,0 +1,52 @@
+#include <iostream>
+#include <cuda_runtime.h>
+
+__global__ void countEvenOdd(int *evenCount, int *oddCount) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;  // Global thread index
+    
+    if (idx < 100) {  // We are interested in numbers between 0 and 99
+        if (idx % 2 == 0) {
+            atomicAdd(evenCount, 1);  // Increment even count atomically
+            printf("1 ");  // Print 1 for even numbers
+        } else {
+            atomicAdd(oddCount, 1);   // Increment odd count atomically
+            printf("8 ");  // Print 8 for odd numbers
+        }
+    }
+}
+
+int main() {
+    int *d_evenCount, *d_oddCount;  // Device pointers for counts
+    int h_evenCount = 0, h_oddCount = 0;  // Host counts
+
+    // Allocate memory on the device for the even and odd counters
+    cudaMalloc((void**)&d_evenCount, sizeof(int));
+    cudaMalloc((void**)&d_oddCount, sizeof(int));
+
+    // Initialize counts to zero
+    cudaMemcpy(d_evenCount, &h_evenCount, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_oddCount, &h_oddCount, sizeof(int), cudaMemcpyHostToDevice);
+
+    // Launch kernel with 100 threads (one per number)
+    int blockSize = 256;  // Number of threads per block
+    int numBlocks = (100 + blockSize - 1) / blockSize;  // Number of blocks
+
+    countEvenOdd<<<numBlocks, blockSize>>>(d_evenCount, d_oddCount);
+
+    // Synchronize to ensure kernel completes before proceeding
+    cudaDeviceSynchronize();
+
+    // Copy the counts back to host
+    cudaMemcpy(&h_evenCount, d_evenCount, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&h_oddCount, d_oddCount, sizeof(int), cudaMemcpyDeviceToHost);
+
+    // Print the results
+    std::cout << "\nEven Count: " << h_evenCount << std::endl;
+    std::cout << "Odd Count: " << h_oddCount << std::endl;
+
+    // Free allocated memory on the device
+    cudaFree(d_evenCount);
+    cudaFree(d_oddCount);
+
+    return 0;
+}
